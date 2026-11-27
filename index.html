@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SignSense - Real-Time BISINDO Edge AI</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ONNX Runtime Web -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.min.js"></script>
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+  <style>
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 0.4; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .pulse-glow {
+      animation: pulse-ring 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white font-black text-xl tracking-wider">
+        SS
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-lg text-white tracking-tight">SignSense <span class="text-blue-400">Web</span></h1>
+          <span class="text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">Edge-AI</span>
+        </div>
+        <p class="text-xs text-slate-400">Penerjemah Bahasa Isyarat BISINDO Real-Time</p>
+      </div>
+    </div>
+
+    <!-- Status Badges -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <div id="statusBadge" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+        <span id="statusText">Memuat Model AI...</span>
+      </div>
+      <div class="hidden sm:flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+        <span>FPS:</span>
+        <span id="fpsCount" class="font-mono text-emerald-400 font-bold">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left Column: Video & Camera Feed (7 cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-4">
+      <div class="relative bg-slate-900/90 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl aspect-[4/3] sm:aspect-video flex items-center justify-center">
+        <!-- Hidden source video -->
+        <video id="webcam" class="hidden" autoplay playsinline muted></video>
+        <!-- Overlay Canvas -->
+        <canvas id="outputCanvas" class="w-full h-full object-contain -scale-x-100"></canvas>
+
+        <!-- Initial Placeholder / Overlay -->
+        <div id="cameraOverlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10 transition-all duration-300">
+          <div class="w-16 h-16 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4 border border-blue-500/30">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+          </div>
+          <h2 class="text-lg font-bold text-white mb-1">Mulai Kamera Webcam</h2>
+          <p class="text-xs text-slate-400 max-w-sm mb-5">Komputasi AI berjalan 100% lokal di browser laptop/HP kamu. Video tidak pernah diupload ke server.</p>
+          <button id="btnStartCamera" disabled class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 font-semibold text-sm shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
+            <span>Izinkan Kamera & Mulai</span>
+          </button>
+        </div>
+
+        <!-- Live Detected Pill Overlay -->
+        <div id="livePill" class="hidden absolute top-4 left-4 z-20 px-3 py-1.5 rounded-lg bg-slate-900/90 backdrop-blur border border-slate-700/80 shadow-lg flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-xs font-semibold text-slate-200" id="livePillText">-</span>
+        </div>
+      </div>
+
+      <!-- Quick Tips -->
+      <div class="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800/80 text-xs text-slate-400 flex items-start gap-2.5">
+        <span class="text-blue-400 font-bold text-sm">💡</span>
+        <p>Arahkan 1 atau 2 tangan ke kamera dengan pencahayaan cukup. Pertahankan posisi gestur selama ~1 detik hingga kata terdeteksi dan otomatis masuk ke perangkai kalimat di samping.</p>
+      </div>
+    </section>
+
+    <!-- Right Column: Results & Sentence Builder (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-5">
+
+      <!-- Real-Time Word Card -->
+      <div class="bg-gradient-to-b from-slate-900 to-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+        <div class="flex items-center justify-between text-xs text-slate-400 font-medium">
+          <span>KATA TERDETEKSI (REAL-TIME)</span>
+          <span id="handDetectedStatus" class="text-slate-500">Tangan belum terdeteksi</span>
+        </div>
+
+        <!-- Big Word Display -->
+        <div class="min-h-[72px] flex items-center justify-center bg-slate-950/70 rounded-xl border border-slate-800/60 p-3">
+          <div id="detectedWord" class="text-3xl sm:text-4xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 text-center">
+            -
+          </div>
+        </div>
+
+        <!-- Confidence Bar -->
+        <div>
+          <div class="flex justify-between text-xs font-semibold mb-1">
+            <span class="text-slate-400">Confidence Score:</span>
+            <span id="confidenceText" class="text-blue-400 font-mono">0%</span>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div id="confidenceBar" class="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sentence Accumulator Card -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+            </svg>
+            Perangkai Kalimat
+          </h3>
+          <span class="text-[11px] text-slate-500" id="wordCount">0 kata</span>
+        </div>
+
+        <!-- Sentence Box -->
+        <div id="sentenceBox" class="min-h-[90px] p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 text-base leading-relaxed break-words font-medium">
+          <span class="text-slate-600 italic font-normal">Peragakan gestur untuk mulai merangkai kalimat di sini...</span>
+        </div>
+
+        <!-- Actions Toolbar -->
+        <div class="grid grid-cols-4 gap-2 pt-1">
+          <!-- Text to Speech -->
+          <button id="btnSpeak" title="Dengarkan Suara" class="col-span-2 py-2 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold text-xs transition flex items-center justify-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+            </svg>
+            <span>Suara (TTS)</span>
+          </button>
+
+          <!-- Copy Button -->
+          <button id="btnCopy" title="Salin Teks" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700/80 transition flex items-center justify-center">
+            📋 Salin
+          </button>
+
+          <!-- Delete Last Word -->
+          <button id="btnBackspace" title="Hapus Kata Terakhir" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700/80 transition flex items-center justify-center">
+            ⌫ Hapus
+          </button>
+        </div>
+
+        <!-- Reset Button -->
+        <button id="btnClear" class="text-center text-[11px] text-slate-500 hover:text-red-400 py-1 transition">
+          🗑️ Reset Kalimat
+        </button>
+      </div>
+
+      <!-- 38 Vocabulary Accordion -->
+      <details class="group bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs">
+        <summary class="font-semibold text-slate-300 cursor-pointer flex items-center justify-between select-none">
+          <span>Daftar 38 Kosakata BISINDO yang Didukung</span>
+          <span class="text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <div id="vocabList" class="mt-3 flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+        </div>
+      </details>
+
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 text-center py-4 text-xs text-slate-600">
+    SignSense PKM-KC 2024 &bull; Built with MediaPipe & ONNX Runtime Web &bull; 100% In-Browser Edge AI
+  </footer>
+
+  <!-- Web Audio Synth for subtle chime on word confirmation -->
+  <script>
+    function playChime() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+      } catch (e) {}
+    }
+  </script>
+
+  <!-- Main AI App Script -->
+  <script>
+    // State
+    let session = null;
+    let labels = [];
+    let camera = null;
+    let isModelLoaded = false;
+    let accumulatedWords = [];
+    let lastConfirmedWord = null;
+    let wordBuffer = [];
+    let bufferTimer = Date.now();
+    let frameCount = 0;
+    let lastFpsTime = Date.now();
+
+    // DOM Elements
+    const statusBadge = document.getElementById("statusBadge");
+    const statusText = document.getElementById("statusText");
+    const btnStartCamera = document.getElementById("btnStartCamera");
+    const cameraOverlay = document.getElementById("cameraOverlay");
+    const webcamElement = document.getElementById("webcam");
+    const canvasElement = document.getElementById("outputCanvas");
+    const canvasCtx = canvasElement.getContext("2d");
+    const detectedWord = document.getElementById("detectedWord");
+    const confidenceText = document.getElementById("confidenceText");
+    const confidenceBar = document.getElementById("confidenceBar");
+    const handDetectedStatus = document.getElementById("handDetectedStatus");
+    const sentenceBox = document.getElementById("sentenceBox");
+    const wordCount = document.getElementById("wordCount");
+    const fpsCount = document.getElementById("fpsCount");
+    const livePill = document.getElementById("livePill");
+    const livePillText = document.getElementById("livePillText");
+    const vocabList = document.getElementById("vocabList");
+
+    // Buttons
+    const btnSpeak = document.getElementById("btnSpeak");
+    const btnCopy = document.getElementById("btnCopy");
+    const btnBackspace = document.getElementById("btnBackspace");
+    const btnClear = document.getElementById("btnClear");
+
+    // 1. Initialize ONNX & Labels
+    async function initModel() {
+      try {
+        // Load labels
+        const labelsRes = await fetch("./model/labels.json");
+        labels = await labelsRes.json();
+        renderVocabBadges();
+
+        statusText.innerText = "Mengunduh Model AI (18 MB)...";
+
+        // Load ONNX Session with WebAssembly
+        ort.env.wasm.numThreads = 2;
+        session = await ort.InferenceSession.create("./model/model.onnx", {
+          executionProviders: ['wasm']
+        });
+
+        isModelLoaded = true;
+        statusBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>AI Siap</span>`;
+        btnStartCamera.disabled = false;
+        btnStartCamera.classList.remove("opacity-50", "cursor-not-allowed");
+      } catch (err) {
+        console.error("Model load error:", err);
+        statusBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        statusText.innerText = "Gagal Memuat Model AI";
+      }
+    }
+
+    function renderVocabBadges() {
+      vocabList.innerHTML = labels.map(l => 
+        `<span class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 hover:border-blue-500 transition">${l}</span>`
+      ).join("");
+    }
+
+    // 2. Setup MediaPipe Hands
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.35,
+      minTrackingConfidence: 0.35
+    });
+
+    hands.onResults(onResults);
+
+    // 3. Process each camera frame
+    async function onResults(results) {
+      // Calculate FPS
+      frameCount++;
+      const now = Date.now();
+      if (now - lastFpsTime >= 1000) {
+        fpsCount.innerText = frameCount;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+
+      // Draw camera image onto canvas
+      canvasElement.width = webcamElement.videoWidth || 640;
+      canvasElement.height = webcamElement.videoHeight || 480;
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+      let lh = new Array(21).fill(null).map(() => [0.0, 0.0, 0.0]);
+      let rh = new Array(21).fill(null).map(() => [0.0, 0.0, 0.0]);
+      let hasHand = false;
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        hasHand = true;
+
+        // Draw skeletons on canvas
+        for (const landmarks of results.multiHandLandmarks) {
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#00F0FF', lineWidth: 3 });
+          drawLandmarks(canvasCtx, landmarks, { color: '#10B981', lineWidth: 1, radius: 3 });
+        }
+
+        // Map Handedness to Left and Right
+        if (results.multiHandedness && results.multiHandedness.length === results.multiHandLandmarks.length) {
+          for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+            const side = results.multiHandedness[i].label; // "Left" or "Right"
+            const lms = results.multiHandLandmarks[i].map(lm => [lm.x, lm.y, lm.z]);
+            if (side === "Left") lh = lms;
+            else rh = lms;
+          }
+        } else {
+          // Fallback based on x coordinate
+          const list = results.multiHandLandmarks.map(lmks => {
+            const meanX = lmks.reduce((acc, c) => acc + c.x, 0) / lmks.length;
+            return { meanX, coords: lmks.map(c => [c.x, c.y, c.z]) };
+          }).sort((a, b) => a.meanX - b.meanX);
+
+          if (list.length >= 1) lh = list[0].coords;
+          if (list.length >= 2) rh = list[1].coords;
+        }
+
+        handDetectedStatus.innerText = results.multiHandLandmarks.length === 2 ? "2 Tangan (Kiri & Kanan)" : "1 Tangan Terdeteksi";
+        handDetectedStatus.className = "text-emerald-400 font-semibold";
+      } else {
+        handDetectedStatus.innerText = "Tangan belum terdeteksi";
+        handDetectedStatus.className = "text-slate-500";
+      }
+
+      canvasCtx.restore();
+
+      // Inference if hands exist and model ready
+      if (hasHand && isModelLoaded) {
+        // Build 126 float features
+        const feats = new Float32Array(126);
+        let idx = 0;
+        for (let i = 0; i < 21; i++) {
+          feats[idx++] = lh[i][0];
+          feats[idx++] = lh[i][1];
+          feats[idx++] = lh[i][2];
+        }
+        for (let i = 0; i < 21; i++) {
+          feats[idx++] = rh[i][0];
+          feats[idx++] = rh[i][1];
+          feats[idx++] = rh[i][2];
+        }
+
+        try {
+          const inputTensor = new ort.Tensor("float32", feats, [1, 126]);
+          const feeds = { float_input: inputTensor };
+          const output = await session.run(feeds);
+
+          let predictedWord = "-";
+          let probPct = 0;
+
+          if (output.output_label) {
+            predictedWord = String(output.output_label.data[0]);
+          }
+
+          // Compute max probability if available
+          if (output.output_probability && output.output_probability.data) {
+            const probs = output.output_probability.data;
+            let maxP = 0;
+            for (let p of probs) if (p > maxP) maxP = p;
+            probPct = Math.round(maxP * 100);
+          } else {
+            probPct = 85; // Fallback
+          }
+
+          if (predictedWord && predictedWord !== "-") {
+            detectedWord.innerText = predictedWord;
+            confidenceText.innerText = `${probPct}%`;
+            confidenceBar.style.width = `${probPct}%`;
+
+            livePill.classList.remove("hidden");
+            livePillText.innerText = `${predictedWord} (${probPct}%)`;
+
+            // Buffer for Voting / Sentence Accumulator
+            wordBuffer.push(predictedWord);
+
+            // Trigger sentence append after 1.2s stable gesture
+            if (Date.now() - bufferTimer >= 1200) {
+              if (wordBuffer.length > 5) {
+                const counts = {};
+                wordBuffer.forEach(w => counts[w] = (counts[w] || 0) + 1);
+                const mostFreq = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+
+                if (mostFreq !== lastConfirmedWord) {
+                  addWordToSentence(mostFreq);
+                  lastConfirmedWord = mostFreq;
+                  playChime();
+                }
+              }
+              wordBuffer = [];
+              bufferTimer = Date.now();
+            }
+          }
+        } catch (e) {
+          console.error("Inference run error:", e);
+        }
+      } else {
+        // No hands
+        detectedWord.innerText = "-";
+        confidenceText.innerText = "0%";
+        confidenceBar.style.width = "0%";
+        livePill.classList.add("hidden");
+        wordBuffer = [];
+        bufferTimer = Date.now();
+      }
+    }
+
+    // 4. Sentence Management
+    function addWordToSentence(word) {
+      accumulatedWords.push(word);
+      renderSentence();
+    }
+
+    function renderSentence() {
+      if (accumulatedWords.length === 0) {
+        sentenceBox.innerHTML = '<span class="text-slate-600 italic font-normal">Peragakan gestur untuk mulai merangkai kalimat di sini...</span>';
+        wordCount.innerText = "0 kata";
+      } else {
+        sentenceBox.innerText = accumulatedWords.join(" ");
+        wordCount.innerText = `${accumulatedWords.length} kata`;
+      }
+    }
+
+    btnBackspace.addEventListener("click", () => {
+      if (accumulatedWords.length > 0) {
+        accumulatedWords.pop();
+        lastConfirmedWord = null;
+        renderSentence();
+      }
+    });
+
+    btnClear.addEventListener("click", () => {
+      accumulatedWords = [];
+      lastConfirmedWord = null;
+      renderSentence();
+    });
+
+    btnCopy.addEventListener("click", () => {
+      const text = accumulatedWords.join(" ");
+      if (text) {
+        navigator.clipboard.writeText(text);
+        btnCopy.innerText = "✓ Disalin!";
+        setTimeout(() => btnCopy.innerText = "📋 Salin", 1500);
+      }
+    });
+
+    btnSpeak.addEventListener("click", () => {
+      const text = accumulatedWords.join(" ") || detectedWord.innerText;
+      if (text && text !== "-") {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "id-ID";
+        utterance.rate = 0.95;
+        window.speechSynthesis.speak(utterance);
+      }
+    });
+
+    // 5. Start Webcam Button
+    btnStartCamera.addEventListener("click", async () => {
+      cameraOverlay.classList.add("opacity-0", "pointer-events-none");
+      camera = new Camera(webcamElement, {
+        onFrame: async () => {
+          await hands.send({ image: webcamElement });
+        },
+        width: 640,
+        height: 480
+      });
+      await camera.start();
+    });
+
+    // Start loading model on page load
+    window.addEventListener("DOMContentLoaded", initModel);
+  </script>
+</body>
+</html>
