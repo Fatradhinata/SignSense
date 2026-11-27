@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SignSense - Real-Time BISINDO Edge AI</title>
+  <title>SignSense - Penerjemah BISINDO Real-Time</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Font: Plus Jakarta Sans -->
+  <!-- Google Font: Plus Jakarta Sans & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <!-- MediaPipe Hands -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -21,217 +21,459 @@
         extend: {
           fontFamily: {
             sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
           }
         }
       }
     }
   </script>
+  <style>
+    /* Custom minimalist scrollbar matching Konvexi */
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+    .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+<body class="relative bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
 
-  <!-- Top Navbar -->
-  <header class="border-b border-slate-800/80 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/25 text-white font-extrabold text-lg tracking-wider">
-        SS
-      </div>
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="font-bold text-base sm:text-lg text-white tracking-tight">SignSense <span class="text-cyan-400">Web</span></h1>
-          <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">Edge-AI 38 Kata</span>
+  <!-- Background Layer: Warm Konvexi Wash + Lequirem Orange Optical Fiber Canvas -->
+  <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-b from-orange-50/90 via-slate-50/70 to-white"></div>
+    <canvas id="fiberCanvas" class="block w-full h-full will-change-transform"></canvas>
+  </div>
+
+  <!-- Floating Glass Navbar (Konvexi SaaS Style) -->
+  <header class="fixed inset-x-0 top-0 z-50">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 pt-3.5 lg:px-8">
+      <div class="relative flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/75 px-4 py-2.5 shadow-sm shadow-slate-200/60 backdrop-blur-xl">
+        <!-- Brand Logo -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-600 to-orange-500 flex items-center justify-center shadow-md shadow-orange-200 text-white font-extrabold text-sm tracking-tight">
+            SS
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight">SignSense</span>
+              <span class="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-orange-700">Edge AI</span>
+            </div>
+            <p class="text-[11px] font-medium text-slate-500 hidden sm:block">Penerjemah Bahasa Isyarat BISINDO Real-Time</p>
+          </div>
         </div>
-        <p class="text-[11px] sm:text-xs text-slate-400">Penerjemah BISINDO Real-Time &bull; 100% Di Browser</p>
-      </div>
-    </div>
 
-    <!-- Status Badges -->
-    <div class="flex items-center gap-2 flex-wrap">
-      <div id="statusBadge" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
-        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-        <span id="statusText">Memuat Model AI (578 KB)...</span>
-      </div>
-      <div class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800/90 text-slate-300 border border-slate-700/80">
-        <span>FPS:</span>
-        <span id="fpsCount" class="font-mono text-emerald-400 font-bold">0</span>
+        <!-- Telemetry Status Pills -->
+        <div class="flex items-center gap-2.5">
+          <div id="statusBadge" class="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50/90 px-3 py-1 text-xs font-semibold text-amber-700 shadow-xs">
+            <span class="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
+            <span id="statusText">Memuat Model AI...</span>
+          </div>
+          <div class="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1 font-mono text-xs font-bold text-slate-700 shadow-xs">
+            <span class="text-slate-400 font-normal">FPS</span>
+            <span id="fpsCount" class="text-orange-600">0</span>
+          </div>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- Main Content Area -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+  <!-- Main Workspace -->
+  <main class="relative z-10 flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10">
 
-    <!-- Left Column: Video & Camera Feed (7 cols) -->
-    <section class="lg:col-span-7 flex flex-col gap-4">
-      <!-- Main Camera Card -->
-      <div class="relative bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl aspect-[4/3] sm:aspect-video flex items-center justify-center">
-        <!-- Hidden video & offscreen mirror canvas -->
-        <video id="webcam" class="hidden" autoplay playsinline muted></video>
-        <canvas id="mirrorCanvas" class="hidden"></canvas>
-
-        <!-- Display Canvas (already mirrored cleanly) -->
-        <canvas id="outputCanvas" class="w-full h-full object-contain"></canvas>
-
-        <!-- Initial Placeholder / Overlay -->
-        <div id="cameraOverlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-20 transition-all duration-300">
-          <div class="w-16 h-16 rounded-2xl bg-blue-600/15 text-cyan-400 flex items-center justify-center mb-4 border border-cyan-500/30 shadow-lg shadow-cyan-500/10">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-            </svg>
-          </div>
-          <h2 class="text-lg font-bold text-white mb-1.5">Aktifkan Kamera Webcam</h2>
-          <p class="text-xs text-slate-400 max-w-sm mb-5 leading-relaxed">
-            AI berjalan langsung di perangkatmu tanpa mengirim video ke server. Siap digunakan di laptop maupun HP!
-          </p>
-          <button id="btnStartCamera" disabled class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 font-semibold text-sm shadow-lg shadow-blue-600/25 transition-all cursor-pointer disabled:cursor-not-allowed flex items-center gap-2">
-            <span>Izinkan Kamera &amp; Mulai Deteksi</span>
-          </button>
-          <p id="cameraError" class="hidden mt-3 text-xs text-rose-400 max-w-sm"></p>
+    <!-- Compact SaaS Hero Header -->
+    <div class="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div>
+        <div class="inline-flex items-center gap-1.5 rounded-full border border-orange-200/80 bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-orange-600 shadow-xs backdrop-blur-sm mb-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+          100% Client-Side Inference
         </div>
-
-        <!-- Live Detected Pill Overlay (Top Left) -->
-        <div id="livePill" class="hidden absolute top-3.5 left-3.5 z-10 px-3.5 py-1.5 rounded-xl bg-slate-950/85 backdrop-blur border border-emerald-500/40 shadow-lg flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-sm font-bold text-white tracking-wide" id="livePillText">-</span>
-        </div>
-
-        <!-- Mini Zoomed ROI Preview (Bottom Right inside video) -->
-        <div id="roiContainer" class="hidden absolute bottom-3 right-3 z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden border-2 border-cyan-400/70 bg-slate-950 shadow-xl">
-          <canvas id="roiCanvas" class="w-full h-full object-cover"></canvas>
-          <span class="absolute top-1 left-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-950/80 text-cyan-300">Hands ROI</span>
-        </div>
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight">
+          Penerjemah <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-700 font-black">BISINDO Real-Time</span> di Browser.
+        </h1>
       </div>
+      <p class="text-xs sm:text-sm text-slate-600 max-w-md font-medium">
+        Deteksi 38 kosakata bahasa isyarat tanpa kirim video ke server. Cepat, gratis, dan aman privasi.
+      </p>
+    </div>
 
-      <!-- Bottom Video Controls & Tips -->
-      <div class="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs text-slate-400">
-        <div class="flex items-start gap-2 max-w-lg">
-          <span class="text-cyan-400 text-sm">💡</span>
-          <p>Tahan gestur selama <strong>~1 detik</strong> sampai bar kestabilan penuh agar kata otomatis masuk ke kalimat.</p>
-        </div>
-        <div class="flex items-center gap-2">
-          <label class="flex items-center gap-1.5 cursor-pointer select-none text-slate-300">
-            <input type="checkbox" id="chkAutoSentence" checked class="accent-cyan-500 rounded">
-            <span>Auto-Kalimat</span>
-          </label>
-          <button id="btnToggleCamera" class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium border border-slate-700 transition">
-            ⏸ Jeda Kamera
-          </button>
-        </div>
-      </div>
-    </section>
+    <!-- Studio Grid (12 cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-    <!-- Right Column: Results & Sentence Builder (5 cols) -->
-    <section class="lg:col-span-5 flex flex-col gap-4">
-
-      <!-- Real-Time Word Card -->
-      <div class="bg-gradient-to-b from-slate-900 to-slate-900/85 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
-        <div class="flex items-center justify-between text-xs font-medium">
-          <span class="text-slate-400 uppercase tracking-wider font-bold">Kata Terdeteksi</span>
-          <span id="handDetectedStatus" class="text-slate-500">Menunggu kamera...</span>
-        </div>
-
-        <!-- Big Word Display -->
-        <div class="min-h-[76px] flex items-center justify-center bg-slate-950/75 rounded-xl border border-slate-800/70 p-3 relative overflow-hidden">
-          <div id="detectedWord" class="text-3xl sm:text-4xl font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 text-center">
-            -
-          </div>
-        </div>
-
-        <!-- Confidence & Stability Hold Progress -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <div class="flex justify-between text-[11px] font-semibold mb-1">
-              <span class="text-slate-400">Akurasi Prediksi</span>
-              <span id="confidenceText" class="text-cyan-400 font-mono">0%</span>
+      <!-- Left Column: Camera Viewport Card (7 cols) -->
+      <section class="lg:col-span-7 flex flex-col gap-4">
+        <div class="rounded-3xl border border-slate-200/90 bg-white/85 p-3 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+          <!-- Window Top Bar (Lequirem Card Style) -->
+          <div class="flex items-center justify-between px-2 pb-2.5 pt-0.5">
+            <div class="flex items-center gap-2">
+              <div class="flex gap-1.5">
+                <span class="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+                <span class="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+                <span class="h-2.5 w-2.5 rounded-full bg-orange-400"></span>
+              </div>
+              <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-slate-400 ml-1">
+                vision-stream.local
+              </span>
             </div>
-            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div id="confidenceBar" class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-150" style="width: 0%"></div>
+            <span id="handDetectedStatus" class="font-mono text-[11px] font-bold text-slate-500">
+              Menunggu kamera
+            </span>
+          </div>
+
+          <!-- Video Canvas Container -->
+          <div class="relative bg-slate-950 rounded-2xl border border-slate-200/80 overflow-hidden aspect-[4/3] sm:aspect-video flex items-center justify-center">
+            <!-- Hidden video & offscreen mirror canvas -->
+            <video id="webcam" class="hidden" autoplay playsinline muted></video>
+            <canvas id="mirrorCanvas" class="hidden"></canvas>
+
+            <!-- Display Canvas -->
+            <canvas id="outputCanvas" class="w-full h-full object-contain"></canvas>
+
+            <!-- Camera Activation Overlay (Clean Light Glass Card over dark viewport) -->
+            <div id="cameraOverlay" class="absolute inset-0 bg-slate-900/65 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20 transition-all duration-300">
+              <div class="max-w-sm rounded-3xl border border-white/80 bg-white/95 p-6 shadow-2xl">
+                <div class="mx-auto w-14 h-14 rounded-2xl bg-orange-50 border border-orange-200 text-orange-600 flex items-center justify-center mb-4 shadow-sm">
+                  <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                </div>
+                <h2 class="text-base sm:text-lg font-extrabold text-slate-900 mb-1.5">Aktifkan Kamera Webcam</h2>
+                <p class="text-xs text-slate-600 mb-5 leading-relaxed">
+                  Komputasi AI berjalan langsung di perangkatmu tanpa mengunggah gambar ke server mana pun.
+                </p>
+                <button id="btnStartCamera" disabled class="w-full px-5 py-3 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm shadow-lg shadow-orange-200 disabled:shadow-none transition-all hover:-translate-y-0.5 active:scale-95 cursor-pointer disabled:cursor-not-allowed">
+                  Izinkan Kamera &amp; Mulai
+                </button>
+                <p id="cameraError" class="hidden mt-3 text-xs font-medium text-rose-600"></p>
+              </div>
+            </div>
+
+            <!-- Live Detected Pill Overlay -->
+            <div id="livePill" class="hidden absolute top-3.5 left-3.5 z-10 px-3.5 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-orange-200 shadow-lg flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
+              <span class="text-sm font-extrabold text-slate-900 tracking-tight" id="livePillText">-</span>
+            </div>
+
+            <!-- Mini Zoomed ROI Preview -->
+            <div id="roiContainer" class="hidden absolute bottom-3 right-3 z-10 w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden border-2 border-orange-500 bg-slate-950 shadow-xl">
+              <canvas id="roiCanvas" class="w-full h-full object-cover"></canvas>
+              <span class="absolute top-1.5 left-1.5 text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-600 text-white shadow-xs">Hands ROI</span>
             </div>
           </div>
-          <div>
-            <div class="flex justify-between text-[11px] font-semibold mb-1">
-              <span class="text-slate-400">Kunci Kata</span>
-              <span id="lockText" class="text-emerald-400 font-mono">0%</span>
+
+          <!-- Viewport Footer Bar -->
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-3 px-2 py-1 text-xs text-slate-600">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-orange-600 font-bold text-[11px]">i</span>
+              <span>Tahan gestur <strong>~1 detik</strong> atau matikan Auto-Kalimat untuk mode manual.</span>
             </div>
-            <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div id="lockBar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-100" style="width: 0%"></div>
+            <div class="flex items-center gap-3">
+              <label class="flex items-center gap-1.5 cursor-pointer select-none font-semibold text-slate-700">
+                <input type="checkbox" id="chkAutoSentence" class="accent-orange-600 w-4 h-4 rounded">
+                <span>Auto-Kalimat</span>
+              </label>
+              <button id="btnToggleCamera" class="hidden px-3 py-1.5 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer">
+                ⏸ Jeda Kamera
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Sentence Accumulator Card -->
-      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
-            </svg>
-            Perangkai Kalimat
-          </h3>
-          <span class="text-[11px] text-slate-500 font-medium" id="wordCount">0 kata</span>
-        </div>
+      <!-- Right Column: Telemetry & Sentence Studio (5 cols) -->
+      <section class="lg:col-span-5 flex flex-col gap-5">
 
-        <!-- Sentence Box -->
-        <div id="sentenceBox" class="min-h-[86px] p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 text-base leading-relaxed break-words font-medium">
-          <span class="text-slate-600 italic font-normal text-sm">Peragakan gestur untuk mulai merangkai kalimat di sini...</span>
-        </div>
+        <!-- Card 1: Real-Time Word Card -->
+        <div class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.06)] backdrop-blur-xl flex flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <span class="font-mono text-xs font-bold uppercase tracking-wider text-slate-500">Kata Terdeteksi</span>
+            <span class="rounded-full border border-orange-200/80 bg-orange-50 px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-orange-700">
+              Live Inference
+            </span>
+          </div>
 
-        <!-- Actions Toolbar -->
-        <div class="grid grid-cols-4 gap-2 pt-1">
-          <!-- Text to Speech -->
-          <button id="btnSpeak" title="Dengarkan Suara Bahasa Indonesia" class="col-span-2 py-2 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-300 border border-indigo-500/30 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
-            </svg>
-            <span>Suara (TTS)</span>
-          </button>
+          <!-- Word Display Well -->
+          <div class="min-h-[82px] flex items-center justify-center rounded-2xl border border-slate-200/80 bg-slate-50/90 p-3">
+            <div id="detectedWord" class="text-3xl sm:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 text-center">
+              -
+            </div>
+          </div>
 
-          <!-- Copy Button -->
-          <button id="btnCopy" title="Salin Kalimat" class="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700/80 transition flex items-center justify-center cursor-pointer">
-            📋 Salin
-          </button>
-
-          <!-- Delete Last Word -->
-          <button id="btnBackspace" title="Hapus Kata Terakhir" class="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700/80 transition flex items-center justify-center cursor-pointer">
-            ⌫ Hapus
-          </button>
-        </div>
-
-        <div class="flex items-center justify-between pt-1">
-          <button id="btnAddManual" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium transition cursor-pointer">
-            + Tambah kata aktif sekarang
-          </button>
-          <button id="btnClear" class="text-[11px] text-slate-500 hover:text-rose-400 transition cursor-pointer">
-            🗑️ Reset Kalimat
-          </button>
-        </div>
-      </div>
-
-      <!-- 38 Vocabulary Search & Tags -->
-      <details open class="group bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs">
-        <summary class="font-semibold text-slate-300 cursor-pointer flex items-center justify-between select-none">
-          <span>Daftar 38 Kosakata BISINDO (<span id="vocabCount">38</span>)</span>
-          <span class="text-slate-500 group-open:rotate-180 transition-transform">▼</span>
-        </summary>
-        <div class="mt-3">
-          <input type="text" id="vocabSearch" placeholder="Cari kata (misal: Halo, Makan, Saya)..." class="w-full px-3 py-1.5 mb-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 text-xs">
-          <div id="vocabList" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
-            <!-- Populated by JS -->
+          <!-- Dual Progress Bars -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <div class="flex justify-between font-mono text-[11px] font-bold mb-1.5">
+                <span class="text-slate-500">Confidence</span>
+                <span id="confidenceText" class="text-orange-600">0%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden border border-slate-200/60">
+                <div id="confidenceBar" class="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-150" style="width: 0%"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between font-mono text-[11px] font-bold mb-1.5">
+                <span class="text-slate-500">Kunci Kata</span>
+                <span id="lockText" class="text-emerald-600">0%</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden border border-slate-200/60">
+                <div id="lockBar" class="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-100" style="width: 0%"></div>
+              </div>
+            </div>
           </div>
         </div>
-      </details>
 
-    </section>
+        <!-- Card 2: Sentence Builder Card -->
+        <div class="rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.06)] backdrop-blur-xl flex flex-col gap-3.5">
+          <div class="flex items-center justify-between">
+            <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-slate-500">Perangkai Kalimat</h3>
+            <span class="font-mono text-[11px] font-bold text-slate-400" id="wordCount">0 kata</span>
+          </div>
+
+          <!-- Sentence Box -->
+          <div id="sentenceBox" class="min-h-[88px] p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-slate-800 text-base leading-relaxed break-words font-semibold">
+            <span class="text-slate-400 italic font-normal text-sm">Peragakan gestur untuk mulai merangkai kalimat...</span>
+          </div>
+
+          <!-- Primary Add Button (Handy for Manual Mode) -->
+          <button id="btnAddManual" class="w-full py-2.5 px-4 rounded-xl border border-orange-200 bg-orange-50/90 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>+ Tambahkan Kata Aktif ke Kalimat</span>
+          </button>
+
+          <!-- Toolbar -->
+          <div class="grid grid-cols-4 gap-2">
+            <button id="btnSpeak" class="col-span-2 py-2.5 px-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-md shadow-orange-200 transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+              </svg>
+              <span>Bunyikan Suara</span>
+            </button>
+            <button id="btnCopy" class="py-2.5 px-2 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer">
+              Salin
+            </button>
+            <button id="btnBackspace" class="py-2.5 px-2 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer">
+              Hapus
+            </button>
+          </div>
+
+          <button id="btnClear" class="text-center text-[11px] font-semibold text-slate-400 hover:text-rose-600 py-0.5 transition cursor-pointer">
+            Reset Semua Kalimat
+          </button>
+        </div>
+
+        <!-- Card 3: 38 Vocabulary Tags -->
+        <details open class="group rounded-3xl border border-slate-200/90 bg-white/85 p-5 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.05)] backdrop-blur-xl text-xs">
+          <summary class="font-mono font-bold uppercase tracking-wider text-slate-500 cursor-pointer flex items-center justify-between select-none">
+            <span>38 Kosakata BISINDO</span>
+            <span class="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="mt-3">
+            <input type="text" id="vocabSearch" placeholder="Cari kata (contoh: Halo, Makan, Saya)..." class="w-full px-3.5 py-2 mb-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-orange-500 focus:bg-white text-xs transition">
+            <div id="vocabList" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto scrollbar-thin pr-1">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </details>
+
+      </section>
+    </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="border-t border-slate-900/80 text-center py-3.5 text-xs text-slate-500">
-    SignSense &bull; Real-Time BISINDO Edge-AI &bull; MediaPipe Hands + Pure-JS Neural Network
+  <!-- Minimalist Footer -->
+  <footer class="relative z-10 border-t border-slate-200/70 bg-white/60 backdrop-blur-md text-center py-4 text-xs font-medium text-slate-500">
+    SignSense &bull; Penerjemah Bahasa Isyarat BISINDO Real-Time &bull; Edge-AI In-Browser
   </footer>
 
-  <!-- App Logic -->
+  <!-- Script 1: Lequirem Optical Fiber Canvas Adapted to Vibrant Orange -->
   <script>
-    // State
+    (function initFiberCanvas() {
+      const canvas = document.getElementById("fiberCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) return;
+
+      const TOTAL_STRANDS = 54;
+      const PULSE_COUNT = 8;
+
+      const ROOT_LEFT_CLUSTERS = [
+        { startXRatio: -0.05, startYRatio: 0.65 },
+        { startXRatio: -0.08, startYRatio: 0.78 },
+        { startXRatio: -0.06, startYRatio: 0.90 },
+        { startXRatio: -0.02, startYRatio: 0.98 },
+      ];
+
+      const CANOPY_RIGHT_CLUSTERS = [
+        { endYOffsetRatio: -0.36, exitAngle: -0.42 },
+        { endYOffsetRatio: -0.18, exitAngle: -0.24 },
+        { endYOffsetRatio: 0.02, exitAngle: -0.05 },
+        { endYOffsetRatio: 0.22, exitAngle: 0.16 },
+        { endYOffsetRatio: 0.42, exitAngle: 0.34 },
+      ];
+
+      const rand = (seed) => {
+        const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+        return x - Math.floor(x);
+      };
+
+      const evalBezier = (p0, cp1, cp2, p1, t) => {
+        const u = 1 - t;
+        const tt = t * t;
+        const uu = u * u;
+        return {
+          x: uu * u * p0.x + 3 * uu * t * cp1.x + 3 * u * tt * cp2.x + tt * t * p1.x,
+          y: uu * u * p0.y + 3 * uu * t * cp1.y + 3 * u * tt * cp2.y + tt * t * p1.y,
+        };
+      };
+
+      let width = 0, height = 0;
+      const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      };
+      resize();
+      window.addEventListener("resize", resize);
+
+      const fibers = Array.from({ length: TOTAL_STRANDS }, (_, i) => {
+        const tier = i % 9 === 0 ? "pillar" : i % 3 === 0 ? "wisp" : "strand";
+        return {
+          tier,
+          rootClusterIdx: Math.floor(rand(i + 7) * ROOT_LEFT_CLUSTERS.length),
+          canopyClusterIdx: Math.floor(rand(i * 19 + 23) * CANOPY_RIGHT_CLUSTERS.length),
+          rootJitterX: -20 - rand(i + 13) * 70,
+          rootJitterY: (rand(i + 31) - 0.5) * 90,
+          canopyJitterY: (rand(i + 47) - 0.5) * 95,
+          midOffsetX: (rand(i + 61) - 0.5) * 6,
+          midOffsetY: (rand(i + 73) - 0.5) * 4,
+          freqX1: 0.32 + rand(i + 81) * 0.4,
+          freqX2: 0.16 + rand(i + 83) * 0.22,
+          freqY1: 0.25 + rand(i + 89) * 0.35,
+          freqY2: 0.12 + rand(i + 97) * 0.18,
+          phase1: rand(i + 101) * Math.PI * 2,
+          phase2: rand(i + 107) * Math.PI * 2,
+          floatAmp: tier === "wisp" ? 1.4 : tier === "pillar" ? 0.7 : 1.0,
+          lineWidth: tier === "pillar" ? 2.1 : tier === "wisp" ? 0.75 : 1.2,
+          alpha: tier === "pillar" ? 0.42 : tier === "wisp" ? 0.16 : 0.26,
+        };
+      });
+
+      const pulses = Array.from({ length: PULSE_COUNT }, (_, i) => ({
+        fiberIndex: Math.floor((i / PULSE_COUNT) * TOTAL_STRANDS),
+        progress: (i * 0.17) % 1,
+        speed: 0.0022 + (i % 3) * 0.0007,
+        size: 2.2 + (i % 2) * 1.1,
+      }));
+
+      function render(ms) {
+        const time = ms * 0.001;
+        ctx.clearRect(0, 0, width, height);
+
+        const isMobile = width < 768;
+        const nexusX = isMobile ? width * 0.5 : width * 0.46;
+        const nexusY = height * 0.45;
+        const primaryKnotAngle = -0.24;
+        const knotDirX = Math.cos(primaryKnotAngle);
+        const knotDirY = Math.sin(primaryKnotAngle);
+
+        const cachedCurves = [];
+
+        for (let i = 0; i < TOTAL_STRANDS; i++) {
+          const f = fibers[i];
+          const root = ROOT_LEFT_CLUSTERS[f.rootClusterIdx];
+          const canopy = CANOPY_RIGHT_CLUSTERS[f.canopyClusterIdx];
+
+          const rootFloatX = Math.sin(time * f.freqX1 + f.phase1) * Math.cos(time * f.freqX2) * (24 * f.floatAmp);
+          const rootFloatY = Math.sin(time * f.freqY1 + f.phase2) * (28 * f.floatAmp);
+          const canopyFloatX = Math.cos(time * f.freqX2 + f.phase2) * (18 * f.floatAmp);
+          const canopyFloatY = (Math.sin(time * f.freqY1 + f.phase1) + Math.sin(time * f.freqY2 * 1.5)) * (22 * f.floatAmp);
+
+          const startX = f.rootJitterX + rootFloatX;
+          const startY = height * root.startYRatio + f.rootJitterY + rootFloatY;
+          const midX = nexusX + f.midOffsetX;
+          const midY = nexusY + f.midOffsetY;
+          const endX = width + 85 + canopyFloatX;
+          const endY = nexusY + height * canopy.endYOffsetRatio + f.canopyJitterY + canopyFloatY;
+
+          const inDist = Math.hypot(midX - startX, midY - startY);
+          const cp1Sway = Math.sin(time * 0.4 + f.phase1) * 20;
+          const cp1x = startX + inDist * 0.35 + cp1Sway;
+          const cp1y = startY - inDist * 0.25 + rootFloatY * 0.3;
+          const cp2x = midX - knotDirX * (inDist * 0.28);
+          const cp2y = midY - knotDirY * (inDist * 0.28);
+
+          const outDist = Math.hypot(endX - midX, endY - midY);
+          const branchAngle = primaryKnotAngle + canopy.exitAngle * 0.38;
+          const cp3x = midX + Math.cos(branchAngle) * (outDist * 0.24);
+          const cp3y = midY + Math.sin(branchAngle) * (outDist * 0.24);
+          const cp4Sway = Math.sin(time * 0.35 + f.phase2) * 24;
+          const cp4x = midX + (endX - midX) * 0.62 + cp4Sway;
+          const cp4y = endY - (endY - midY) * 0.18 + canopyFloatY * 0.4;
+
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, midX, midY);
+          ctx.bezierCurveTo(cp3x, cp3y, cp4x, cp4y, endX, endY);
+
+          if (f.tier === "pillar") {
+            // Soft outer orange halo
+            ctx.strokeStyle = "rgba(249, 115, 22, 0.14)";
+            ctx.lineWidth = f.lineWidth * 2.8;
+            ctx.stroke();
+
+            // Rich vibrant orange core
+            ctx.strokeStyle = `rgba(234, 88, 12, ${f.alpha})`;
+            ctx.lineWidth = f.lineWidth;
+            ctx.stroke();
+          } else if (f.tier === "wisp") {
+            ctx.strokeStyle = `rgba(253, 186, 116, ${f.alpha * 1.1})`;
+            ctx.lineWidth = f.lineWidth;
+            ctx.stroke();
+          } else {
+            ctx.strokeStyle = `rgba(249, 115, 22, ${f.alpha})`;
+            ctx.lineWidth = f.lineWidth;
+            ctx.stroke();
+          }
+
+          cachedCurves.push({
+            inSeg: [{ x: startX, y: startY }, { x: cp1x, y: cp1y }, { x: cp2x, y: cp2y }, { x: midX, y: midY }],
+            outSeg: [{ x: midX, y: midY }, { x: cp3x, y: cp3y }, { x: cp4x, y: cp4y }, { x: endX, y: endY }]
+          });
+        }
+
+        // Photonic orange light packets traveling along fibers
+        for (const p of pulses) {
+          p.progress += p.speed;
+          if (p.progress > 1) p.progress = 0;
+
+          const curve = cachedCurves[p.fiberIndex];
+          if (!curve) continue;
+          const pt = p.progress < 0.5
+            ? evalBezier(curve.inSeg[0], curve.inSeg[1], curve.inSeg[2], curve.inSeg[3], p.progress * 2)
+            : evalBezier(curve.outSeg[0], curve.outSeg[1], curve.outSeg[2], curve.outSeg[3], (p.progress - 0.5) * 2);
+
+          // Glow halo
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, p.size * 2.8, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(249, 115, 22, 0.22)";
+          ctx.fill();
+
+          // Bright orange core pulse
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(234, 88, 12, 0.92)";
+          ctx.fill();
+        }
+
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+    })();
+  </script>
+
+  <!-- Script 2: SignSense Edge-AI App Logic -->
+  <script>
     let modelData = null;
     let camera = null;
     let isCameraPaused = false;
@@ -245,7 +487,7 @@
     const HOLD_DURATION_MS = 1100;
     const CONF_THRESHOLD = 0.45;
 
-    // DOM Elements
+    // DOM
     const statusBadge = document.getElementById("statusBadge");
     const statusText = document.getElementById("statusText");
     const btnStartCamera = document.getElementById("btnStartCamera");
@@ -282,7 +524,6 @@
     const btnClear = document.getElementById("btnClear");
     const btnAddManual = document.getElementById("btnAddManual");
 
-    // Subtle chime using Web Audio API
     function playChime() {
       try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -304,13 +545,11 @@
     function predictMLP(feats) {
       if (!modelData) return { label: "-", confidence: 0 };
 
-      // 1. StandardScaler
       let vec = new Float32Array(126);
       for (let i = 0; i < 126; i++) {
         vec[i] = (feats[i] - modelData.mean[i]) / modelData.scale[i];
       }
 
-      // 2. Dense Layers
       const numLayers = modelData.layers.length;
       for (let l = 0; l < numLayers; l++) {
         const layer = modelData.layers[l];
@@ -331,7 +570,6 @@
         vec = next;
       }
 
-      // 3. Softmax
       let maxLogit = -Infinity;
       for (let j = 0; j < vec.length; j++) {
         if (vec[j] > maxLogit) maxLogit = vec[j];
@@ -359,7 +597,6 @@
       };
     }
 
-    // Load model weights JSON
     async function initModel() {
       try {
         const res = await fetch("./model/model_weights.json");
@@ -369,13 +606,13 @@
         isModelLoaded = true;
         renderVocabBadges(modelData.classes);
 
-        statusBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-        statusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>AI Siap (${modelData.classes.length} Kata)</span>`;
+        statusBadge.className = "flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/90 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-xs";
+        statusBadge.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-500"></span><span>AI Siap (${modelData.classes.length} Kata)</span>`;
 
         btnStartCamera.disabled = false;
       } catch (err) {
         console.error("Failed loading model:", err);
-        statusBadge.className = "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        statusBadge.className = "flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50/90 px-3 py-1 text-xs font-semibold text-rose-700";
         statusText.innerText = "Gagal Memuat Model AI";
       }
     }
@@ -384,7 +621,7 @@
       const q = filter.trim().toLowerCase();
       const filtered = q ? classes.filter(c => c.toLowerCase().includes(q)) : classes;
       vocabList.innerHTML = filtered.map(c =>
-        `<button onclick="speakWord('${c}')" title="Klik untuk mendengar ucapan '${c}'" class="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-blue-600/20 text-slate-300 hover:text-cyan-300 border border-slate-700/70 hover:border-cyan-500/40 transition cursor-pointer">${c}</button>`
+        `<button onclick="speakWord('${c}')" title="Klik untuk mendengar ucapan '${c}'" class="px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-700 hover:text-orange-700 border border-slate-200/80 hover:border-orange-300 font-semibold transition cursor-pointer">${c}</button>`
       ).join("");
     }
 
@@ -401,7 +638,6 @@
       if (modelData) renderVocabBadges(modelData.classes, e.target.value);
     });
 
-    // MediaPipe Hands setup
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
@@ -415,9 +651,7 @@
 
     hands.onResults(onResults);
 
-    // Process camera frame results
     function onResults(results) {
-      // FPS Counter
       frameCount++;
       const now = Date.now();
       if (now - lastFpsTime >= 1000) {
@@ -436,7 +670,6 @@
       canvasCtx.drawImage(results.image, 0, 0, W, H);
 
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0 && isModelLoaded) {
-        // Compute Union Bounding Box + 25% Padding (exact match to dataset & desktop ROI)
         let minX = 1, maxX = 0, minY = 1, maxY = 0;
         for (const hand of results.multiHandLandmarks) {
           for (const lm of hand) {
@@ -456,28 +689,22 @@
         const roiW = Math.max(1e-5, x2 - x1);
         const roiH = Math.max(1e-5, y2 - y1);
 
-        // Draw Green ROI Bounding Box on main canvas
-        canvasCtx.strokeStyle = "#10B981";
+        // Draw vibrant orange ROI Bounding Box
+        canvasCtx.strokeStyle = "#F97316";
         canvasCtx.lineWidth = 3;
         canvasCtx.strokeRect(x1 * W, y1 * H, roiW * W, roiH * H);
 
-        // Draw skeletons on main canvas
+        // Draw crisp orange & white hand skeletons
         for (const landmarks of results.multiHandLandmarks) {
-          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#22D3EE', lineWidth: 2.5 });
-          drawLandmarks(canvasCtx, landmarks, { color: '#10B981', lineWidth: 1, radius: 3 });
+          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#FB923C', lineWidth: 2.5 });
+          drawLandmarks(canvasCtx, landmarks, { color: '#FFFFFF', fillColor: '#EA580C', lineWidth: 1.5, radius: 3 });
         }
 
-        // Render zoomed ROI onto mini preview canvas
         roiContainer.classList.remove("hidden");
         roiCanvas.width = 256;
         roiCanvas.height = 256;
-        roiCtx.drawImage(
-          results.image,
-          x1 * W, y1 * H, roiW * W, roiH * H,
-          0, 0, 256, 256
-        );
+        roiCtx.drawImage(results.image, x1 * W, y1 * H, roiW * W, roiH * H, 0, 0, 256, 256);
 
-        // Map landmarks into ROI [0..1] coordinates & extract 126 features
         let lh = new Array(21).fill(null).map(() => [0.0, 0.0, 0.0]);
         let rh = new Array(21).fill(null).map(() => [0.0, 0.0, 0.0]);
 
@@ -505,9 +732,8 @@
         }
 
         handDetectedStatus.innerText = results.multiHandLandmarks.length === 2 ? "2 Tangan Terdeteksi" : "1 Tangan Terdeteksi";
-        handDetectedStatus.className = "text-emerald-400 font-semibold";
+        handDetectedStatus.className = "font-mono text-[11px] font-bold text-orange-600";
 
-        // Build 126-element input vector
         const feats = new Float32Array(126);
         let idx = 0;
         for (let i = 0; i < 21; i++) {
@@ -521,7 +747,6 @@
           feats[idx++] = rh[i][2];
         }
 
-        // Run inference!
         const pred = predictMLP(feats);
         const pct = Math.round(pred.confidence * 100);
 
@@ -533,7 +758,6 @@
           livePill.classList.remove("hidden");
           livePillText.innerText = `${pred.label} (${pct}%)`;
 
-          // Sentence Builder hold timer
           if (chkAutoSentence.checked) {
             wordBuffer.push(pred.label);
             const elapsed = now - bufferStart;
@@ -555,6 +779,9 @@
               wordBuffer = [];
               bufferStart = now;
             }
+          } else {
+            lockText.innerText = "Manual";
+            lockBar.style.width = "0%";
           }
         } else {
           detectedWord.innerText = "-";
@@ -566,13 +793,11 @@
           wordBuffer = [];
           bufferStart = now;
         }
-
       } else {
-        // No hands detected
         roiContainer.classList.add("hidden");
         livePill.classList.add("hidden");
         handDetectedStatus.innerText = "Tangan belum terdeteksi";
-        handDetectedStatus.className = "text-slate-500";
+        handDetectedStatus.className = "font-mono text-[11px] font-bold text-slate-400";
         detectedWord.innerText = "-";
         confidenceText.innerText = "0%";
         confidenceBar.style.width = "0%";
@@ -580,13 +805,12 @@
         lockBar.style.width = "0%";
         wordBuffer = [];
         bufferStart = now;
-        lastConfirmedWord = null; // Allow repeating the same word after dropping hands!
+        lastConfirmedWord = null;
       }
 
       canvasCtx.restore();
     }
 
-    // Sentence Functions
     function addWordToSentence(word) {
       if (!word || word === "-") return;
       accumulatedWords.push(word);
@@ -595,7 +819,7 @@
 
     function renderSentence() {
       if (accumulatedWords.length === 0) {
-        sentenceBox.innerHTML = '<span class="text-slate-600 italic font-normal text-sm">Peragakan gestur untuk mulai merangkai kalimat di sini...</span>';
+        sentenceBox.innerHTML = '<span class="text-slate-400 italic font-normal text-sm">Peragakan gestur untuk mulai merangkai kalimat...</span>';
         wordCount.innerText = "0 kata";
       } else {
         sentenceBox.innerText = accumulatedWords.join(" ");
@@ -629,8 +853,8 @@
       const text = accumulatedWords.join(" ");
       if (text) {
         navigator.clipboard.writeText(text);
-        btnCopy.innerText = "✓ Tersalin";
-        setTimeout(() => btnCopy.innerText = "📋 Salin", 1500);
+        btnCopy.innerText = "Tersalin";
+        setTimeout(() => btnCopy.innerText = "Salin", 1500);
       }
     });
 
@@ -639,7 +863,6 @@
       speakWord(text);
     });
 
-    // Camera Start & Pause
     btnStartCamera.addEventListener("click", async () => {
       cameraError.classList.add("hidden");
       try {
@@ -672,10 +895,9 @@
 
     btnToggleCamera.addEventListener("click", () => {
       isCameraPaused = !isCameraPaused;
-      btnToggleCamera.innerText = isCameraPaused ? "▶ Lanjutkan Kamera" : "⏸ Jeda Kamera";
+      btnToggleCamera.innerText = isCameraPaused ? "▶ Lanjutkan" : "⏸ Jeda Kamera";
     });
 
-    // Init
     window.addEventListener("DOMContentLoaded", initModel);
   </script>
 </body>
