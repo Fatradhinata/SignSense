@@ -164,11 +164,11 @@
           <div class="mt-3 flex flex-wrap items-center justify-between gap-3 px-2 py-1 text-xs text-slate-600">
             <div class="flex items-center gap-2">
               <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-orange-600 font-bold text-[11px]">i</span>
-              <span>Tahan gestur <strong>~1 detik</strong> atau matikan Auto-Kalimat untuk mode manual.</span>
+              <span>Tahan gestur <strong>~1 detik</strong> untuk mengunci kata ke perangkai kalimat.</span>
             </div>
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-1.5 cursor-pointer select-none font-semibold text-slate-700">
-                <input type="checkbox" id="chkAutoSentence" class="accent-orange-600 w-4 h-4 rounded">
+                <input type="checkbox" id="chkAutoSentence" checked class="accent-orange-600 w-4 h-4 rounded">
                 <span>Auto-Kalimat</span>
               </label>
               <button id="btnToggleCamera" class="hidden px-3 py-1.5 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer">
@@ -233,30 +233,15 @@
             <span class="text-slate-400 italic font-normal text-sm">Peragakan gestur untuk mulai merangkai kalimat...</span>
           </div>
 
-          <!-- Primary Add Button (Handy for Manual Mode) -->
-          <button id="btnAddManual" class="w-full py-2.5 px-4 rounded-xl border border-orange-200 bg-orange-50/90 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
-            <span>+ Tambahkan Kata Aktif ke Kalimat</span>
-          </button>
-
           <!-- Toolbar -->
-          <div class="grid grid-cols-4 gap-2">
-            <button id="btnSpeak" class="col-span-2 py-2.5 px-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-md shadow-orange-200 transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
-              </svg>
-              <span>Bunyikan Suara</span>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button id="btnBackspace" class="py-2.5 px-3 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer">
+              Hapus Kata Terakhir
             </button>
-            <button id="btnCopy" class="py-2.5 px-2 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer">
-              Salin
-            </button>
-            <button id="btnBackspace" class="py-2.5 px-2 rounded-xl bg-white ring-1 ring-inset ring-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer">
-              Hapus
+            <button id="btnClear" class="py-2.5 px-3 rounded-xl bg-white ring-1 ring-inset ring-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs transition cursor-pointer">
+              Reset Kalimat
             </button>
           </div>
-
-          <button id="btnClear" class="text-center text-[11px] font-semibold text-slate-400 hover:text-rose-600 py-0.5 transition cursor-pointer">
-            Reset Semua Kalimat
-          </button>
         </div>
 
         <!-- Card 3: 38 Vocabulary Tags -->
@@ -518,11 +503,8 @@
     const vocabSearch = document.getElementById("vocabSearch");
     const chkAutoSentence = document.getElementById("chkAutoSentence");
 
-    const btnSpeak = document.getElementById("btnSpeak");
-    const btnCopy = document.getElementById("btnCopy");
     const btnBackspace = document.getElementById("btnBackspace");
     const btnClear = document.getElementById("btnClear");
-    const btnAddManual = document.getElementById("btnAddManual");
 
     function playChime() {
       try {
@@ -621,17 +603,8 @@
       const q = filter.trim().toLowerCase();
       const filtered = q ? classes.filter(c => c.toLowerCase().includes(q)) : classes;
       vocabList.innerHTML = filtered.map(c =>
-        `<button onclick="speakWord('${c}')" title="Klik untuk mendengar ucapan '${c}'" class="px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-700 hover:text-orange-700 border border-slate-200/80 hover:border-orange-300 font-semibold transition cursor-pointer">${c}</button>`
+        `<span class="px-2.5 py-1 rounded-xl bg-slate-50 text-slate-700 border border-slate-200/80 font-semibold select-none">${c}</span>`
       ).join("");
-    }
-
-    function speakWord(text) {
-      if (!text || text === "-") return;
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "id-ID";
-      u.rate = 0.95;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
     }
 
     vocabSearch.addEventListener("input", (e) => {
@@ -780,7 +753,7 @@
               bufferStart = now;
             }
           } else {
-            lockText.innerText = "Manual";
+            lockText.innerText = "Off";
             lockBar.style.width = "0%";
           }
         } else {
@@ -827,14 +800,6 @@
       }
     }
 
-    btnAddManual.addEventListener("click", () => {
-      const current = detectedWord.innerText;
-      if (current && current !== "-") {
-        addWordToSentence(current);
-        playChime();
-      }
-    });
-
     btnBackspace.addEventListener("click", () => {
       if (accumulatedWords.length > 0) {
         accumulatedWords.pop();
@@ -847,20 +812,6 @@
       accumulatedWords = [];
       lastConfirmedWord = null;
       renderSentence();
-    });
-
-    btnCopy.addEventListener("click", () => {
-      const text = accumulatedWords.join(" ");
-      if (text) {
-        navigator.clipboard.writeText(text);
-        btnCopy.innerText = "Tersalin";
-        setTimeout(() => btnCopy.innerText = "Salin", 1500);
-      }
-    });
-
-    btnSpeak.addEventListener("click", () => {
-      const text = accumulatedWords.join(" ") || detectedWord.innerText;
-      speakWord(text);
     });
 
     btnStartCamera.addEventListener("click", async () => {
